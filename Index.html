@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tetris Cyberpunk</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+body {
+  background: #0a0a0f;
+  color: #fff;
+  font-family: monospace;
+}
+.game-container {
+  max-width: 900px;
+  margin: auto;
+}
+canvas {
+  background: #050510;
+  border: 2px solid #0ff;
+}
+.panel {
+  background: #111122;
+  border: 1px solid #0ff;
+  padding: 10px;
+  margin-top: 10px;
+}
+.btn-cyber {
+  background: #0ff;
+  color: #000;
+  font-weight: bold;
+}
+.touch-controls button {
+  width: 60px;
+  margin: 5px;
+}
+</style>
+</head>
+<body>
+<div class="container game-container text-center mt-4">
+  <h2>🧩 TETRIS CYBERPUNK</h2>
+  <canvas id="game" width="240" height="400"></canvas>
+
+  <div class="panel">
+    <div>⭐ Puntos: <span id="score">0</span></div>
+    <div>⏱ Tiempo: <span id="time">60</span>s</div>
+  </div>
+
+  <div class="panel">
+    <label>Dificultad:</label>
+    <select id="difficulty" class="form-select">
+      <option value="1000">Fácil</option>
+      <option value="600">Normal</option>
+      <option value="300">Difícil</option>
+    </select>
+  </div>
+
+  <div class="touch-controls mt-3">
+    <button class="btn btn-cyber" onclick="move(-1)">⬅️</button>
+    <button class="btn btn-cyber" onclick="rotate()">🔄</button>
+    <button class="btn btn-cyber" onclick="move(1)">➡️</button>
+    <button class="btn btn-cyber" onclick="drop()">⬇️</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const ROWS = 20;
+const COLS = 12;
+const SIZE = 20;
+let grid = Array.from({length: ROWS}, () => Array(COLS).fill(0));
+
+const COLORS = ['cyan','blue','orange','yellow','green','purple','red'];
+
+const SHAPES = [
+  [[1,1,1,1]],
+  [[1,1],[1,1]],
+  [[0,1,0],[1,1,1]],
+  [[1,0,0],[1,1,1]],
+  [[0,0,1],[1,1,1]],
+  [[1,1,0],[0,1,1]],
+  [[0,1,1],[1,1,0]]
+];
+
+let piece = null;
+let score = 0;
+let time = 60;
+let interval = 1000;
+
+function newPiece() {
+  const index = Math.floor(Math.random()*SHAPES.length);
+  piece = {
+    shape: SHAPES[index],
+    color: COLORS[index],
+    x: 4,
+    y: 0
+  };
+}
+
+function drawCell(x,y,color) {
+  ctx.fillStyle = color;
+  ctx.fillRect(x*SIZE,y*SIZE,SIZE-1,SIZE-1);
+}
+
+function draw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  grid.forEach((row,y)=>{
+    row.forEach((val,x)=>{
+      if(val) drawCell(x,y,val);
+    });
+  });
+  piece.shape.forEach((row,y)=>{
+    row.forEach((val,x)=>{
+      if(val) drawCell(piece.x+x,piece.y+y,piece.color);
+    });
+  });
+}
+
+function collide() {
+  return piece.shape.some((row,y)=>{
+    return row.some((val,x)=>{
+      if(!val) return false;
+      let nx = piece.x+x;
+      let ny = piece.y+y;
+      return ny>=ROWS || nx<0 || nx>=COLS || grid[ny][nx];
+    });
+  });
+}
+
+function merge() {
+  piece.shape.forEach((row,y)=>{
+    row.forEach((val,x)=>{
+      if(val) grid[piece.y+y][piece.x+x]=piece.color;
+    });
+  });
+}
+
+function clearLines() {
+  grid = grid.filter(row => row.some(cell => !cell));
+  while(grid.length < ROWS) {
+    grid.unshift(Array(COLS).fill(0));
+    score += 10;
+  }
+  document.getElementById('score').innerText = score;
+}
+
+function drop() {
+  piece.y++;
+  if(collide()) {
+    piece.y--;
+    merge();
+    clearLines();
+    newPiece();
+  }
+}
+
+function move(dir) {
+  piece.x += dir;
+  if(collide()) piece.x -= dir;
+}
+
+function rotate() {
+  const rotated = piece.shape[0].map((_,i)=> piece.shape.map(row=>row[i]).reverse());
+  const prev = piece.shape;
+  piece.shape = rotated;
+  if(collide()) piece.shape = prev;
+}
+
+function update() {
+  drop();
+  draw();
+}
+
+setInterval(()=>{
+  interval = parseInt(document.getElementById('difficulty').value);
+},1000);
+
+setInterval(()=>{
+  update();
+},interval);
+
+setInterval(()=>{
+  time--;
+  document.getElementById('time').innerText = time;
+  if(time<=0) alert('Juego terminado');
+},1000);
+
+window.addEventListener('keydown', e=>{
+  if(e.key==='ArrowLeft') move(-1);
+  if(e.key==='ArrowRight') move(1);
+  if(e.key==='ArrowDown') drop();
+  if(e.key==='z' || e.key==='x') rotate();
+  if(e.key===' ') drop();
+});
+
+canvas.addEventListener('click', rotate);
+
+let dragging = false;
+canvas.addEventListener('mousedown', ()=> dragging=true);
+canvas.addEventListener('mouseup', ()=> dragging=false);
+canvas.addEventListener('mousemove', e=>{
+  if(dragging) move(e.movementX>0?1:-1);
+});
+
+newPiece();
+draw();
+</script>
+</body>
+</html>
