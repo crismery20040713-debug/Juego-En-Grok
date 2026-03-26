@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CYBERTETRIS</title>
+    <!-- Bootstrap 5 CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&amp;display=swap');
+
+        :root {
+            --neon-cyan: #00f0ff;
+            --neon-pink: #ff00cc;
+            --neon-green: #00ff88;
+        }
+
+        body {
+            background: radial-gradient(circle at center, #0a001f 0%, #000000 70%);
+            color: #fff;
+            font-family: 'Press Start 2P', system-ui;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .neon-text {
+            text-shadow: 
+                0 0 10px var(--neon-cyan),
+                0 0 20px var(--neon-cyan),
+                0 0 40px var(--neon-pink);
+        }
+
+        .hud-panel {
+            background: rgba(10, 10, 30, 0.95);
+            border: 3px solid var(--neon-cyan);
+            box-shadow: 
+                0 0 15px var(--neon-cyan),
+                inset 0 0 15px rgba(0, 240, 255, 0.3);
+        }
+
+        #game-canvas {
+            image-rendering: pixelated;
+            border: 6px solid var(--neon-cyan);
+            box-shadow: 
+                0 0 30px var(--neon-cyan),
+                0 0 60px var(--neon-pink);
+            background: #0a0a1f;
+        }
+
+        .control-btn {
+            width: 60px;
+            height: 60px;
+            font-size: 1.8rem;
+            background: rgba(10, 10, 30, 0.9);
+            border: 3px solid var(--neon-green);
+            color: var(--neon-green);
+            box-shadow: 0 0 15px var(--neon-green);
+            transition: all 0.1s;
+        }
+
+        .control-btn:active {
+            transform: scale(0.9);
+            box-shadow: 0 0 25px var(--neon-green);
+        }
+
+        .modal-content {
+            background: #0a001f;
+            border: 4px solid var(--neon-pink);
+            box-shadow: 0 0 40px var(--neon-pink);
+        }
+
+        .modal-header, .modal-footer {
+            border-color: var(--neon-cyan);
+        }
+
+        .piece-preview {
+            background: #111133;
+            border: 3px solid var(--neon-cyan);
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-3">
+        <!-- Header -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="neon-text fs-1 fw-bold m-0">CYBERTETRIS</h1>
+            <div class="d-flex gap-3 align-items-center">
+                <!-- Botón de pausa -->
+                <button onclick="togglePause()" id="pause-btn"
+                        class="btn btn-outline-light border-3 px-4 py-2 neon-text d-flex align-items-center gap-2">
+                    <span id="pause-icon">⏸️</span>
+                    <span id="pause-text">PAUSA</span>
+                </button>
+                
+                <!-- Botón de configuración -->
+                <button onclick="showSettings()" 
+                        class="btn btn-outline-light border-3 px-4 py-2 neon-text">
+                    ⚙️ AJUSTES
+                </button>
+                
+                <!-- Reiniciar -->
+                <button onclick="restartGame()" 
+                        class="btn btn-outline-danger border-3 px-4 py-2 neon-text">
+                    ⟳ REINICIAR
+                </button>
+            </div>
+            <div class="text-end">
+                <small class="text-muted">TECLAS • TÁCTIL • MOUSE</small>
+            </div>
+        </div>
+
+        <div class="row g-4 justify-content-center">
+            <!-- Área del juego -->
+            <div class="col-12 col-xl-7">
+                <div class="d-flex justify-content-center">
+                    <canvas id="game-canvas" width="300" height="600"></canvas>
+                </div>
+                
+                <!-- Controles táctiles (siempre visibles, responsive) -->
+                <div class="mt-4 d-flex justify-content-center gap-2 flex-wrap" id="touch-controls">
+                    <div class="d-flex flex-column gap-2 align-items-center">
+                        <!-- Fila izquierda -->
+                        <div class="d-flex gap-2">
+                            <button onclick="handleTouchMove(-1)" class="control-btn rounded-3" id="btn-left">⬅️</button>
+                            <button onclick="handleTouchRotate(-1)" class="control-btn rounded-3">↩️</button>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button onclick="handleTouchDrop()" class="control-btn rounded-3" style="width:128px;height:60px;font-size:2rem;">↓↓</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Centro -->
+                    <div class="d-flex flex-column gap-2 align-items-center">
+                        <button onclick="handleTouchMove(1)" class="control-btn rounded-3" id="btn-right">➡️</button>
+                        <button onclick="handleTouchRotate(1)" class="control-btn rounded-3">↪️</button>
+                    </div>
+                    
+                    <!-- Soft drop y hard drop -->
+                    <div class="d-flex flex-column gap-2">
+                        <button onclick="handleTouchSoftDrop()" class="control-btn rounded-3" style="height:80px">▼</button>
+                        <button onclick="handleTouchHardDrop()" class="control-btn rounded-3" style="height:80px;background:#ff00cc;border-color:#ff00cc;color:#fff">SPACE</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- HUD lateral -->
+            <div class="col-12 col-xl-5">
+                <div class="row g-3">
+                    <!-- Puntuación -->
+                    <div class="col-6 col-md-4 col-xl-6">
+                        <div class="hud-panel rounded-4 p-3 text-center">
+                            <div class="d-flex align-items-center justify-content-center gap-2 mb-2">
+                                <span class="fs-2">🏆</span>
+                                <span class="fs-6 text-uppercase opacity-75">PUNTUACIÓN</span>
+                            </div>
+                            <h2 id="score-display" class="neon-text fs-1 fw-bold mb-0">00000</h2>
+                        </div>
+                    </div>
+                    
+                    <!-- Tiempo restante -->
+                    <div class="col-6 col-md-4 col-xl-6">
+                        <div class="hud-panel rounded-4 p-3 text-center">
+                            <div class="d-flex align-items-center justify-content-center gap-2 mb-2">
+                                <span class="fs-2">⏳</span>
+                                <span class="fs-6 text-uppercase opacity-75">TIEMPO</span>
+                            </div>
+                            <h2 id="timer-display" class="neon-text fs-1 fw-bold mb-0">05:00</h2>
+                        </div>
+                    </div>
+                    
+                    <!-- Líneas completadas -->
+                    <div class="col-12 col-md-4 col-xl-12">
+                        <div class="hud-panel rounded-4 p-3 text-center">
+                            <div class="d-flex align-items-center justify-content-center gap-2 mb-2">
+                                <span class="fs-2">📏</span>
+                                <span class="fs-6 text-uppercase opacity-75">LÍNEAS</span>
+                            </div>
+                            <h2 id="lines-display" class="neon-text fs-1 fw-bold mb-0">000</h2>
+                        </div>
+                    </div>
+                    
+                    <!-- Pieza siguiente -->
+                    <div class="col-12">
+                        <div class="hud-panel rounded-4 p-3">
+                            <div class="d-flex align-items-center justify-content-between mb-3">
+                                <span class="fs-6 text-uppercase opacity-75">SIGUIENTE</span>
+                                <span class="badge bg-info text-dark">CYBER</span>
+                            </div>
+                            <div class="d-flex justify-content-center">
+                                <canvas id="next-canvas" width="120" height="120" class="piece-preview rounded-3"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Info rápida -->
+                    <div class="col-12">
+                        <div class="text-center small text-muted">
+                            <span class="badge border border-info text-info me-2">← → FLECHAS</span>
+                            <span class="badge border border-info text-info me-2">Z / X ROTAR</span>
+                            <span class="badge border border-info text-info">ESPACIO CAÍDA RÁPIDA</span>
+                            <div class="mt-2">Arrastra el mouse en el tablero • Clic = rotar</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Ajustes de dificultad -->
+    <div class="modal fade" id="settingsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title neon-text">⚙️ AJUSTES DE DIFICULTAD</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Velocidad de caída -->
+                    <div class="mb-4">
+                        <label class="form-label d-flex justify-content-between">
+                            <span>VELOCIDAD DE CAÍDA</span>
+                            <span id="speed-value-display" class="fw-bold">800 ms</span>
+                        </label>
+                        <input type="range" class="form-range" id="speed-slider" min="150" max="1200" value="800" step="50"
+                               oninput="document.getElementById('speed-value-display').textContent = this.value + ' ms'">
+                        <div class="d-flex justify-content-between text-muted small">
+                            <span>RÁPIDA (HARD)</span>
+                            <span>LENTA (EASY)</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Tipos de figuras -->
+                    <div class="mb-4">
+                        <label class="form-label">TIPOS DE FIGURAS ACTIVAS</label>
+                        <div class="row g-2" id="piece-types">
+                            <!-- Se llena por JS -->
+                        </div>
+                    </div>
+                    
+                    <!-- Paleta de colores -->
+                    <div>
+                        <label class="form-label">PALETA DE COLORES</label>
+                        <select class="form-select form-select-lg bg-dark text-light border-info" id="palette-select">
+                            <option value="classic">CLÁSICA TETRIS (Cyan / Amarillo / Magenta...)</option>
+                            <option value="neon" selected>NEÓN CYBERPUNK (Glow máximo)</option>
+                        </select>
+                        <small class="text-info">La paleta afecta solo las piezas nuevas</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button onclick="applySettings()" class="btn btn-success neon-text px-5">APLICAR Y REINICIAR</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">CERRAR</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Game Over -->
+    <div class="modal fade" id="gameOverModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center py-5">
+                    <h1 class="neon-text mb-4">GAME OVER</h1>
+                    <p class="fs-5 mb-2">TU PUNTUACIÓN</p>
+                    <h2 id="final-score" class="neon-text display-1 fw-bold mb-4">00000</h2>
+                    <p id="final-lines" class="text-info mb-5"></p>
+                    
+                    <button onclick="restartGame()" class="btn btn-lg btn-danger neon-text px-5 py-3">
+                        REINICIAR PARTIDA
+                    </button>
+                    <div class="mt-4">
+                        <button onclick="hideGameOver()" class="btn btn-outline-light">VER ÚLTIMA PARTIDA</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== CONFIGURACIÓN GLOBAL ====================
+        const COLS = 10;
+        const ROWS = 20;
+        const BLOCK_SIZE = 30;
+        
+        // Tetrominos base (4x4) - Estilo clásico Tetris
+        let TETROMINOS = {
+            I: {
+                color: '#00f0ff',
+                shapes: [
+                    [[0,0,0,0], [1,1,1,1], [0,0,0,0], [0,0,0,0]],
+                    [[0,1,0,0], [0,1,0,0], [0,1,0,0], [0,1,0,0]],
+                    [[0,0,0,0], [1,1,1,1], [0,0,0,0], [0,0,0,0]],
+                    [[0,1,0,0], [0,1,0,0], [0,1,0,0], [0,1,0,0]]
+                ]
+            },
+            O: {
+                color: '#f0f000',
+                shapes: Array(4).fill([[0,0,0,0],[0,1,1,0],[0,1,1,0],[0,0,0,0]])
+            },
+            T: {
+                color: '#c000ff',
+                shapes: [
+                    [[0,1,0,0], [1,1,1,0], [0,0,0,0], [0,0,0,0]],
+                    [[0,1,0,0], [0,1,1,0], [0,1,0,0], [0,0,0,0]],
+                    [[0,0,0,0], [1,1,1,0], [0,1,0,0], [0,0,0,0]],
+                    [[0,1,0,0], [1,1,0,0], [0,1,0,0], [0,0,0,0]]
+                ]
+            },
+            L: {
+                color: '#f08000',
+                shapes: [
+                    [[1,0,0,0], [1,0,0,0], [1,1,0,0], [0,0,0,0]],
+                    [[1,1,1,0], [1,0,0,0], [0,0,0,0], [0,0,0,0]],
+                    [[0,1,1,0], [0,0,1,0], [0,0,1,0], [0,0,0,0]],
+                    [[0,0,1,0], [1,1,1,0], [0,0,0,0], [0,0,0,0]]
+                ]
+            },
+            J: {
+                color: '#0080ff',
+                shapes: [
+                    [[0,0,1,0], [0,0,1,0], [1,1,1,0], [0,0,0,0]],
+                    [[1,0,0,0], [1,1,1,0], [0,0,0,0], [0,0,0,0]],
+                    [[1,1,0,0], [1,0,0,0], [1,0,0,0], [0,0,0,0]],
+                    [[0,0,0,0], [1,1,1,0], [0,0,1,0], [0,0,0,0]]
+                ]
+            },
+            S: {
+                color: '#00ff80',
+                shapes: [
+                    [[0,1,1,0], [1,1,0,0], [0,0,0,0], [0,0,0,0]],
+                    [[0,1,0,0], [0,1,1,0], [0,0,1,0], [0,0,0,0]],
+                    [[0,0,0,0], [0,1,1,0], [1,1,0,0], [0,0,0,0]],
+                    [[1,0,0,0], [1,1,0,0], [0,1,0,0], [0,0,0,0]]
+                ]
+            },
+            Z: {
+                color: '#ff2000',
+                shapes: [
+                    [[1,1,0,0], [0,1,1,0], [0,0,0,0], [0,0,0,0]],
+                    [[0,0,1,0], [0,1,1,0], [0,1,0,0], [0,0,0,0]],
+                    [[0,0,0,0], [1,1,0,0], [0,1,1,0], [0,0,0,0]],
+                    [[0,1,0,0], [1,1,0,0], [1,0,0,0], [0,0,0,0]]
+                ]
+            }
+        };
+        
+        // Paleta neón alternativa (más brillante y cyber)
+        const NEON_PALETTE = {
+            I: '#00ffff',
+            O: '#ffff00',
+            T: '#ff00ff',
+            L: '#ff8800',
+            J: '#00aaff',
+            S: '#00ffaa',
+            Z: '#ff2266'
+        };
+        
+        // Variables del juego
+        let canvas, ctx;
+        let nextCanvas, nextCtx;
+        let board = [];
+        let currentPiece = null;
+        let nextPiece = null;
+        let score = 0;
+        let linesCleared = 0;
+        let timeLeft = 300; // 5 minutos por defecto
+        let dropSpeed = 800; // ms
+        let allowedPieces = ['I', 'O', 'T', 'L', 'J', 'S', 'Z'];
+        let currentPalette = 'neon';
+        let bag = [];
+        let playing = false;
+        let paused = false;
+        let gameOverFlag = false;
+        let lastDropTime = 0;
+        let animationFrame = null;
+        let timerInterval = null;
+        let touchMoveInterval = null;
+        
+        // Rotación clockwise
+        function rotateClockwise(shape) {
+            const n = shape.length;
+            const rotated = Array.from({ length: n }, () => Array(n).fill(0));
+            for (let i = 0; i < n; i++) {
+                for (let j = 0; j < n; j++) {
+                    rotated[j][n - 1 - i] = shape[i][j];
+                }
+            }
+            return rotated;
+        }
+        
+        // Rotación counter-clockwise
+        function rotateCounterClockwise(shape) {
+            const n = shape.length;
+            const rotated = Array.from({ length: n }, () => Array(n).fill(0));
+            for (let i = 0; i < n; i++) {
+                for (let j = 0; j < n; j++) {
+                    rotated[n - 1 - j][i] = shape[i][j];
+                }
+            }
+            return rotated;
+        }
+        
+        // Mezcla Fisher-Yates
+        function shuffle(array) {
+            const copy = [...array];
+            for (let i = copy.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [copy[i], copy[j]] = [copy[j], copy[i]];
+            }
+            return copy;
+        }
+        
+        // Crear nueva pieza
+        function createPiece() {
+            if (bag.length === 0) {
+                bag = shuffle(allowedPieces);
+            }
+            const type = bag.shift();
+            const tetro = TETROMINOS[type];
+            
+            // Aplicar paleta si es neon
+            let color = tetro.color;
+            if (currentPalette === 'neon' && NEON_PALETTE[type]) {
+                color = NEON_PALETTE[type];
+            }
+            
+            return {
+                type: type,
+                shape: tetro.shapes[0].map(row => [...row]),
+                color: color,
+                x: Math.floor(COLS / 2) - 2,
+                y: type === 'I' ? -1 : 0,
+                rotation: 0
+            };
+        }
+        
+        // Colisión
+        function collide(piece) {
+            if (!piece) return true;
+            for (let i = 0; i < piece.shape.length; i++) {
+                for (let j = 0; j < piece.shape[i].length; j++) {
+                    if (!piece.shape[i][j]) continue;
+                    const newX = piece.x + j;
+                    const newY = piece.y + i;
+                    if (newX < 0 || newX >= COLS || newY >= ROWS) return true;
+                    if (newY < 0) continue;
+                    if (board[newY] && board[newY][newX] !== null) return true;
+                }
+            }
+            return false;
+        }
+        
+        // Mover pieza
+        function movePiece(dx, dy) {
+            if (!currentPiece || !playing || paused) return false;
+            currentPiece.x += dx;
+            currentPiece.y += dy;
+            if (collide(currentPiece)) {
+                currentPiece.x -= dx;
+                currentPiece.y -= dy;
+                return false;
+            }
+            return true;
+        }
+        
+        // Rotar pieza
+        function rotatePiece(dir) {
+            if (!currentPiece || !playing || paused) return;
+            const oldShape = currentPiece.shape;
+            let newShape;
+            if (dir > 0) {
+                newShape = rotateClockwise(oldShape);
+            } else {
+                newShape = rotateCounterClockwise(oldShape);
+            }
+            const oldRotation = currentPiece.rotation;
+            currentPiece.shape = newShape;
+            currentPiece.rotation = (currentPiece.rotation + (dir > 0 ? 1 : 3)) % 4;
+            
+            if (collide(currentPiece)) {
+                // Revertir si colisiona
+                currentPiece.shape = oldShape;
+                currentPiece.rotation = oldRotation;
+                return;
+            }
+            draw();
+        }
+        
+        // Bloquear pieza en el tablero
+        function lockPiece() {
+            if (!currentPiece) return;
+            for (let i = 0; i < currentPiece.shape.length; i++) {
+                for (let j = 0; j < currentPiece.shape[i].length; j++) {
+                    if (!currentPiece.shape[i][j]) continue;
+                    const y = currentPiece.y + i;
+                    const x = currentPiece.x + j;
+                    if (y < 0) continue;
+                    board[y][x] = currentPiece.color;
+                }
+            }
+            clearLines();
+            spawnNewPiece();
+        }
+        
+        // Limpiar líneas completas
+        function clearLines() {
+            let lines = 0;
+            for (let r = ROWS - 1; r >= 0; r--) {
+                if (board[r].every(cell => cell !== null)) {
+                    board.splice(r, 1);
+                    board.unshift(Array(COLS).fill(null));
+                    lines++;
+                    r++; // Revisar la misma fila de nuevo
+                }
+            }
+            if (lines > 0) {
+                const pointsTable = [0, 120, 300, 520, 800];
+                score += pointsTable[lines] || 800;
+                linesCleared += lines;
+                updateHUD();
+            }
+        }
+        
+        // Generar nueva pieza
+        function spawnNewPiece() {
+            currentPiece = nextPiece;
+            nextPiece = createPiece();
+            drawNextPiece();
+            
+            // Game over si no cabe la nueva pieza
+            if (collide(currentPiece)) {
+                endGame();
+            }
+        }
+        
+        // Dibujar tablero principal
+        function draw() {
+            ctx.fillStyle = '#0a0a1f';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Grid cyber
+            ctx.strokeStyle = 'rgba(0, 240, 255, 0.15)';
+            ctx.lineWidth = 1;
+            for (let x = 0; x <= COLS; x++) {
+                ctx.beginPath();
+                ctx.moveTo(x * BLOCK_SIZE, 0);
+                ctx.lineTo(x * BLOCK_SIZE, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y <= ROWS; y++) {
+                ctx.beginPath();
+                ctx.moveTo(0, y * BLOCK_SIZE);
+                ctx.lineTo(canvas.width, y * BLOCK_SIZE);
+                ctx.stroke();
+            }
+            
+            // Bloques fijos
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    if (board[r][c]) {
+                        ctx.shadowColor = board[r][c];
+                        ctx.shadowBlur = 18;
+                        ctx.fillStyle = board[r][c];
+                        ctx.fillRect(c * BLOCK_SIZE, r * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                        ctx.shadowBlur = 0;
+                        // Borde interno brillante
+                        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                        ctx.fillRect(c * BLOCK_SIZE + 3, r * BLOCK_SIZE + 3, BLOCK_SIZE - 8, BLOCK_SIZE - 8);
+                    }
+                }
+            }
+            
+            // Pieza actual
+            if (currentPiece) {
+                ctx.shadowColor = currentPiece.color;
+                ctx.shadowBlur = 25;
+                ctx.fillStyle = currentPiece.color;
+                for (let i = 0; i < currentPiece.shape.length; i++) {
+                    for (let j = 0; j < currentPiece.shape[i].length; j++) {
+                        if (currentPiece.shape[i][j]) {
+                            const px = currentPiece.x + j;
+                            const py = currentPiece.y + i;
+                            if (py >= 0) {
+                                ctx.fillRect(px * BLOCK_SIZE, py * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                                ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                                ctx.fillRect(px * BLOCK_SIZE + 4, py * BLOCK_SIZE + 4, BLOCK_SIZE - 10, BLOCK_SIZE - 10);
+                                ctx.fillStyle = currentPiece.color;
+                            }
+                        }
+                    }
+                }
+                ctx.shadowBlur = 0;
+            }
+        }
+        
+        // Dibujar pieza siguiente
+        function drawNextPiece() {
+            nextCtx.fillStyle = '#111133';
+            nextCtx.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
+            
+            if (!nextPiece) return;
+            
+            const offsetX = (4 - nextPiece.shape[0].length) / 2 * 30 + 15;
+            const offsetY = 15;
+            
+            nextCtx.shadowColor = nextPiece.color;
+            nextCtx.shadowBlur = 20;
+            nextCtx.fillStyle = nextPiece.color;
+            
+            for (let i = 0; i < nextPiece.shape.length; i++) {
+                for (let j = 0; j < nextPiece.shape[i].length; j++) {
+                    if (nextPiece.shape[i][j]) {
+                        nextCtx.fillRect(offsetX + j * 30, offsetY + i * 30, 28, 28);
+                    }
+                }
+            }
+            nextCtx.shadowBlur = 0;
+        }
+        
+        // Bucle principal del juego
+        function gameLoop() {
+            if (!playing || paused || gameOverFlag) {
+                animationFrame = requestAnimationFrame(gameLoop);
+                return;
+            }
+            
+            const now = Date.now();
+            
+            // Caída automática
+            if (now - lastDropTime > dropSpeed) {
+                if (!movePiece(0, 1)) {
+                    lockPiece();
+                }
+                lastDropTime = now;
+            }
+            
+            draw();
+            animationFrame = requestAnimationFrame(gameLoop);
+        }
+        
+        // Actualizar HUD
+        function updateHUD() {
+            document.getElementById('score-display').textContent = String(score).padStart(5, '0');
+            document.getElementById('lines-display').textContent = String(linesCleared).padStart(3, '0');
+            
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            document.getElementById('timer-display').innerHTML = 
+                `<span class="neon-text">${minutes}:${seconds < 10 ? '0' : ''}${seconds}</span>`;
+        }
+        
+        // Temporizador
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                if (!playing || paused) return;
+                timeLeft--;
+                updateHUD();
+                if (timeLeft <= 0) {
+                    endGame();
+                }
+            }, 1000);
+        }
+        
+        // Iniciar / reiniciar juego completo
+        function startGame() {
+            // Inicializar tablero
+            board = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+            
+            score = 0;
+            linesCleared = 0;
+            timeLeft = 300;
+            bag = [];
+            
+            // Crear piezas
+            nextPiece = createPiece();
+            currentPiece = createPiece();
+            
+            draw();
+            drawNextPiece();
+            updateHUD();
+            
+            playing = true;
+            paused = false;
+            gameOverFlag = false;
+            
+            lastDropTime = Date.now();
+            startTimer();
+            gameLoop();
+            
+            // Ocultar cualquier modal abierto
+            const modals = document.querySelectorAll('.modal');
+            modals.forEach(m => bootstrap.Modal.getInstance(m) && bootstrap.Modal.getInstance(m).hide());
+        }
+        
+        // Finalizar partida
+        function endGame() {
+            playing = false;
+            gameOverFlag = true;
+            if (timerInterval) clearInterval(timerInterval);
+            cancelAnimationFrame(animationFrame);
+            
+            // Mostrar modal game over
+            document.getElementById('final-score').textContent = String(score).padStart(5, '0');
+            document.getElementById('final-lines').innerHTML = `LÍNEAS COMPLETADAS: <strong class="neon-text">${linesCleared}</strong>`;
+            
+            const modal = new bootstrap.Modal(document.getElementById('gameOverModal'));
+            modal.show();
+        }
+        
+        // Toggle pausa
+        function togglePause() {
+            if (!playing || gameOverFlag) return;
+            paused = !paused;
+            
+            const btn = document.getElementById('pause-btn');
+            if (paused) {
+                btn.querySelector('#pause-icon').textContent = '▶️';
+                btn.querySelector('#pause-text').textContent = 'REANUDAR';
+            } else {
+                btn.querySelector('#pause-icon').textContent = '⏸️';
+                btn.querySelector('#pause-text').textContent = 'PAUSA';
+                lastDropTime = Date.now();
+            }
+        }
+        
+        // Reiniciar completamente
+        function restartGame() {
+            const overModal = bootstrap.Modal.getInstance(document.getElementById('gameOverModal'));
+            if (overModal) overModal.hide();
+            startGame();
+        }
+        
+        // Ocultar modal game over sin reiniciar
+        function hideGameOver() {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('gameOverModal'));
+            if (modal) modal.hide();
+        }
+        
+        // Mostrar ajustes
+        function showSettings() {
+            const modalEl = document.getElementById('settingsModal');
+            const typesContainer = document.getElementById('piece-types');
+            typesContainer.innerHTML = '';
+            
+            // Crear checkboxes de piezas
+            Object.keys(TETROMINOS).forEach(key => {
+                const checked = allowedPieces.includes(key) ? 'checked' : '';
+                const div = document.createElement('div');
+                div.className = 'col-3 col-sm-2';
+                div.innerHTML = `
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="${key}" id="chk-${key}" ${checked}>
+                        <label class="form-check-label fw-bold" for="chk-${key}">${key}</label>
+                    </div>`;
+                typesContainer.appendChild(div);
+            });
+            
+            // Velocidad actual
+            document.getElementById('speed-slider').value = dropSpeed;
+            document.getElementById('speed-value-display').textContent = dropSpeed + ' ms';
+            
+            // Paleta actual
+            document.getElementById('palette-select').value = currentPalette;
+            
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+        }
+        
+        // Aplicar ajustes y reiniciar
+        function applySettings() {
+            // Velocidad
+            dropSpeed = parseInt(document.getElementById('speed-slider').value);
+            
+            // Tipos de piezas
+            allowedPieces = [];
+            document.querySelectorAll('#piece-types input[type="checkbox"]:checked').forEach(chk => {
+                allowedPieces.push(chk.value);
+            });
+            if (allowedPieces.length === 0) allowedPieces = ['I', 'O', 'T', 'L', 'J', 'S', 'Z'];
+            
+            // Paleta
+            currentPalette = document.getElementById('palette-select').value;
+            
+            // Cerrar modal
+            bootstrap.Modal.getInstance(document.getElementById('settingsModal')).hide();
+            
+            // Reiniciar juego con nueva configuración
+            if (playing) {
+                // Si ya estaba jugando, reiniciar
+                restartGame();
+            } else {
+                startGame();
+            }
+        }
+        
+        // Controles táctiles / mouse
+        function handleTouchMove(dir) {
+            if (touchMoveInterval) clearInterval(touchMoveInterval);
+            movePiece(dir, 0);
+            touchMoveInterval = setInterval(() => {
+                if (playing && !paused) movePiece(dir, 0);
+            }, 60);
+        }
+        
+        function handleTouchRotate(dir) {
+            rotatePiece(dir);
+        }
+        
+        function handleTouchSoftDrop() {
+            movePiece(0, 1);
+        }
+        
+        function handleTouchHardDrop() {
+            if (!currentPiece || !playing || paused) return;
+            while (movePiece(0, 1)) {}
+            lockPiece();
+        }
+        
+        function handleTouchDrop() {
+            // Hard drop rápido
+            handleTouchHardDrop();
+        }
+        
+        // Eventos de teclado
+        function handleKey(e) {
+            if (!playing || paused || gameOverFlag) return;
+            
+            switch (e.key) {
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    movePiece(-1, 0);
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    movePiece(1, 0);
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    movePiece(0, 1);
+                    break;
+                case 'z':
+                case 'Z':
+                    e.preventDefault();
+                    rotatePiece(-1); // counter-clockwise
+                    break;
+                case 'x':
+                case 'X':
+                    e.preventDefault();
+                    rotatePiece(1); // clockwise
+                    break;
+                case ' ':
+                    e.preventDefault();
+                    handleTouchHardDrop();
+                    break;
+                case 'p':
+                case 'P':
+                    e.preventDefault();
+                    togglePause();
+                    break;
+            }
+        }
+        
+        // Eventos del mouse en el canvas
+        function setupMouseControls() {
+            let dragStartX = 0;
+            let isDragging = false;
+            
+            canvas.addEventListener('mousedown', (e) => {
+                if (e.button === 0) {
+                    isDragging = true;
+                    dragStartX = e.clientX;
+                    rotatePiece(1); // clic = rotar clockwise
+                }
+            });
+            
+            canvas.addEventListener('mousemove', (e) => {
+                if (!isDragging || !playing || paused) return;
+                const delta = e.clientX - dragStartX;
+                if (Math.abs(delta) >= BLOCK_SIZE) {
+                    const steps = Math.sign(delta);
+                    movePiece(steps, 0);
+                    dragStartX = e.clientX;
+                }
+            });
+            
+            window.addEventListener('mouseup', () => { isDragging = false; });
+            window.addEventListener('mouseleave', () => { isDragging = false; });
+            
+            // Soporte táctil en canvas (arrastre lateral)
+            let touchStartX = 0;
+            canvas.addEventListener('touchstart', (e) => {
+                touchStartX = e.changedTouches[0].clientX;
+            });
+            
+            canvas.addEventListener('touchmove', (e) => {
+                if (!playing || paused) return;
+                const delta = e.changedTouches[0].clientX - touchStartX;
+                if (Math.abs(delta) > 40) {
+                    movePiece(Math.sign(delta), 0);
+                    touchStartX = e.changedTouches[0].clientX;
+                    e.preventDefault();
+                }
+            });
+        }
+        
+        // Inicialización completa
+        function init() {
+            canvas = document.getElementById('game-canvas');
+            ctx = canvas.getContext('2d');
+            nextCanvas = document.getElementById('next-canvas');
+            nextCtx = nextCanvas.getContext('2d');
+            
+            // Dimensiones correctas
+            canvas.width = COLS * BLOCK_SIZE;
+            canvas.height = ROWS * BLOCK_SIZE;
+            
+            // Teclado
+            window.addEventListener('keydown', handleKey);
+            
+            // Controles táctiles (botones)
+            const touchBtns = document.querySelectorAll('#touch-controls button');
+            touchBtns.forEach(btn => {
+                btn.addEventListener('pointerup', () => {
+                    if (touchMoveInterval) {
+                        clearInterval(touchMoveInterval);
+                        touchMoveInterval = null;
+                    }
+                });
+                btn.addEventListener('pointerleave', () => {
+                    if (touchMoveInterval) {
+                        clearInterval(touchMoveInterval);
+                        touchMoveInterval = null;
+                    }
+                });
+            });
+            
+            // Mouse
+            setupMouseControls();
+            
+            // Iniciar automáticamente la primera partida
+            console.log('%c✅ CYBERTETRIS cargado - ¡Disfruta del neon!', 'color:#00f0ff;font-family:monospace');
+            startGame();
+        }
+        
+        // Arrancar todo
+        window.onload = init;
+    </script>
+</body>
+</html>
